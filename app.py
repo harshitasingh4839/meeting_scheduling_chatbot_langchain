@@ -10,31 +10,49 @@ def connect_to_mongodb():
     db = client['meeting_scheduling']
     return db
 
-# Function to check if person exists in database
-def check_client_in_db(db, person_name):
+# Function to check if client exists in database
+def check_client_in_db(db, client_name):
     client_collection = db['clients']
-    client = client_collection.find_one({'name': person_name})
+    client = client_collection.find_one({'name': client_name})
     if client:
         return {'exists': True, 'email': client['email']}
     return {'exists': False, 'email': None}
 
+
+import spacy
+
+# Load spaCy's English NER model
+nlp = spacy.load("en_core_web_sm")
+
+
 # Function to extract person name from text
 def extract_person_name(text):
-    # Function definition for Gemma to extract name
+    """
+    Extract the client's name from the given text using Named Entity Recognition (NER).
+    """
+   
     function_definition = {
-        "name": "extract_person_name",
-        "description": "Extract person name from the given text",
+        "name": "extract_client_name",
+        "description": "Extract the client's name from the given text",
         "parameters": {
             "type": "object",
             "properties": {
-                "person_name": {
+                "client_name": {
                     "type": "string",
-                    "description": "The extracted person name"
+                    "description": "The extracted client's name"
                 }
             },
-            "required": ["person_name"]
+            "required": ["client_name"]
         }
     }
+
+    doc = nlp(text)
+    # Look for PERSON entities in the text
+    for ent in doc.ents:
+        if ent.label_ == "PERSON":
+            return {"client_name": ent.text}
+    return {"client_name": "Could not extract a person name"}
+    
     
     # Prompt for name extraction
     system_prompt = """You are a helpful assistant that extracts person names from text. 
@@ -105,12 +123,13 @@ def main():
     if st.button("Get Response"):
         if user_prompt:
             with st.spinner("Processing..."):
-                # Extract person name
-                person_name = extract_person_name(user_prompt)
+                # Extract client name
+                extracted_name = extract_person_name(user_prompt)
+                client_name = extracted_name.get('client_name')
                 
-                if person_name:
+                if client_name and client_name != "Could not extract a person name":
                     # Check client in database
-                    client_info = check_client_in_db(db, person_name)
+                    client_info = check_client_in_db(db, client_name)
                     
                     # Get LLM response
                     response = get_llm_response(user_prompt, client_info)
@@ -122,10 +141,10 @@ def main():
                     # Display client status
                     st.write("\nClient Status:")
                     if client_info['exists']:
-                        st.success(f"{person_name} is a client")
-                        st.info(f"📧 Email: {client_info['email']}")
+                        st.success(f"{client_name} is a client")
+                        st.info(f"Email: {client_info['email']}")
                     else:
-                        st.warning(f"{person_name} is not found in our client database")
+                        st.warning(f"{client_name} is not found in our client database")
                 else:
                     st.error("Could not extract a person name from the prompt")
         else:
