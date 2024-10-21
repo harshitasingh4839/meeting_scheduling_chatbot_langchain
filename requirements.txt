@@ -1,4 +1,6 @@
 streamlit
 python_dotenv
 pymongo
-olla
+google-auth
+langchain
+spacy
